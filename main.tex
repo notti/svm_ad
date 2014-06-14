@@ -1,12 +1,9 @@
 \documentclass{beamer}
+\usepackage{etex}
 
 \mode<presentation>
 {
   \usetheme{Warsaw}
-  % or ...
-
-% to make stuff transparent instead of invisible
-%  \setbeamercovered{transparent}
 }
 
 
@@ -14,8 +11,21 @@
 \usepackage[latin1]{inputenc}
 \usepackage{times}
 \usepackage[T1]{fontenc}
-% Or whatever. Note that the encoding and the font should match. If T1
-% does not look nice, try deleting the line with the fontenc.
+
+\usepackage{pstricks}
+\usepackage{pst-solides3d}
+\usepackage{pstricks-add}
+\usepackage{pst-fun}
+
+\usepackage[squaren,Gray]{SIunits}
+
+\usepackage[absolute,overlay]{textpos}
+
+\newfont{\Matrixfont}{necker scaled 2400}
+\newfont{\matrixfont}{necker scaled 1200}
+
+\setbeamercolor{framesource}{fg=gray}
+\setbeamerfont{framesource}{size=}
 
 
 \title[SVM for Network AD]{Support Vector Machines for\\ Network Anomaly Detection}
@@ -25,9 +35,11 @@
 \subject{Support Vector Machines for Network Anomaly Detection}
 
 
-\pgfdeclareimage[height=0.5cm]{university-logo}{pics/TU_Logo_SW}
+\pgfdeclareimage[height=0.5cm]{university-logo}{pics/TULogoSW}
 \logo{\pgfuseimage{university-logo}}
 
+\newcommand{\mbird}{\mathord{\begin{pspicture}(0,0)(0.7,0.6) \psscalebox{0.2}{\psBird} \end{pspicture}}}
+\newcommand{\mfish}{\mathord{\begin{pspicture}(0,0)(0.6,0.4) \psscalebox{0.1}{\psFish[fillstyle=slope]} \end{pspicture}}}
 
 
 \AtBeginSubsection[]
@@ -48,154 +60,369 @@
 \end{frame}
 
 
-% Structuring a talk is a difficult task and the following structure
-% may not be suitable. Here are some rules that apply for this
-% solution: 
-
-% - Talk about 30s to 2min per frame. So there should be between about
-%   15 and 30 frames, all told.
-
-% - A conference audience is likely to know very little of what you
-%   are going to talk about. So *simplify*!
-% - In a 20min talk, getting the main ideas across is hard
-%   enough. Leave out details, even if it means being less precise than
-%   you think necessary.
-% - If you omit details that are vital to the proof/implementation,
-%   just say so once. Everybody will be happy with that.
-
 \section{Support Vector Machines}
 
 \begin{frame}{Motivation}
-    % Drawing of Machine
+    \begin{pspicture}(-1,-1)(10,3)
+        \psset{lightsrc=-20 0 20,viewpoint=-20 0 3,Decran=50}
+
+        \psset{solidmemory}
+        \psset{color1=black!60,color2=black!80}
+
+        %belt
+        \pstVerb{/iface 0 store}
+        \psSolid[name=top,fcol=20 {iface (color1) iface 1 add (color2) /iface iface 2 add store} repeat,object=grille,ngrid=1 .1,action=none,base=0 0.5 -4 0]
+        \pstVerb{/iface1 0 store}
+        \psSolid[name=bottom,fcol=20 {iface1 (color2) iface1 1 add (color1) /iface1 iface1 2 add store} repeat,object=grille,ngrid=1 .1,action=none,base=0 0.5 -4 0](0,0,-0.1)
+
+        %rollers
+        \psSolid[name=RL,object=cylindre,RotY=90,h=0.5,r=0.05,action=none,fillcolor=black!60](0,0,-0.05)
+        \psSolid[name=RR,object=cylindre,RotY=90,h=0.5,r=0.05,action=none,fillcolor=black!60](0,-4,-0.05)
+
+        %detector
+        \psSolid[name=detector,object=cube,a=1,action=none,fillcolor=green,incolor=red,hollow,affinage=1 3,chanfrein,chanfreincoeff=.9](0.25,-2,0.2)
+        \psSolid[name=display,object=parallelepiped,action=none,fillcolor=black!40,a=0.05,b=0.8,c=0.3,numfaces=all](-0.25,-2,0.45)
+        \psSolid[name=knobC,object=tronccone,action=none,r0=0.05,r1=0.04,h=0.1,RotY=-90,fillcolor=yellow](-0.3,-1.8,-0.1)
+        \psSolid[name=knobChi,object=tronccone,action=none,r0=0.05,r1=0.04,h=0.1,RotY=-90,fillcolor=red](-0.3,-2.2,-0.1)
+
+        \psSolid[object=fusion,action=draw**,mode=4,base=bottom RL top RR detector display knobC knobChi]
+        \composeSolid
+
+        \only<1>{%
+            \rput(3.8,0.1){\psscalebox{-0.5 0.5}{\psBird}}
+            \rput(1.9,0.1){\psscalebox{-0.12 0.12}{\psFish[fillstyle=slope]}}
+            \rput(0.3,0.7){\psscalebox{0.12}{\includegraphics{pics/tux.eps}}}
+            \rput(5,1){\textcolor{green}{\Matrixfont{----}}}}
+        \only<2>{%
+            \rput(3.6,0.1){\psscalebox{-0.12 0.12}{\psFish[fillstyle=slope]}}
+            \rput(2.0,0.7){\psscalebox{0.12}{\includegraphics{pics/tux.eps}}}
+            \rput(5,1){\textcolor{green}{\Matrixfont{Bird}}}}
+        \only<3>{%
+            \rput(8.2,0.1){\psscalebox{-0.5 0.5}{\psBird}}
+            \rput(3.1,0.7){\psscalebox{0.12}{\includegraphics{pics/tux.eps}}}
+            \rput(5,1){\textcolor{green}{\Matrixfont{Fish}}}}
+        \only<4>{%
+            \rput(9.0,0.1){\psscalebox{-0.5 0.5}{\psBird}}
+            \rput(7.1,0.1){\psscalebox{-0.12 0.12}{\psFish[fillstyle=slope]}}
+            \rput(5,1){\textcolor{green}{\Matrixfont{????}}}}
+
+        \rput(4.5,0){$C$}
+        \rput(5.5,0){$\gamma$}
+    \end{pspicture}
+    \begin{beamercolorbox}[ht=1cm,right]{framesource}
+        \fontsize{3pt}{1em}\selectfont\color{gray} Tux image adapted from: \url{http://www.home.unix-ag.org/simon/penguin/} by Larry Ewing, Simon Budig, Anja Gerwinski, via Wikimedia Commons
+    \end{beamercolorbox}
+\end{frame}
+
+\begin{frame}
+    \begin{block}{What we want}
+        \begin{math}
+            f: (\mbird, \mfish, \dots) \rightarrow (\text{\matrixfont{BIRD}}, \text{\matrixfont{FISH}}, \dots)
+        \end{math}
+    \end{block}
+    \begin{block}{How we want it}
+        \begin{itemize}
+            \item Without knowing the relation.
+            \item Without learning the relation.
+            \item Probably there even is no relation.
+        \end{itemize}
+    \end{block}
 \end{frame}
 
 \subsection{Inner Workings}
 
 \begin{frame}{Features}{Describe the Objects}
+    \begin{columns}[t]
+        \column[T]{3cm}
+            \begin{pspicture}(0,0)(4,3)
+                \psscalebox{0.5}{%
+                \rput(2.5,2){\psBird}
+                \pnode(4.8,1.8){claw}
+                \pnode(2.8,2.4){pecker}
+                \pnode(4.2,3.2){color}
+                \pnode(5,3.1){wing}
+                \rput[bl](4,0.2){\rnode{clawl}{\psframebox{claw size}}}
+                \rput[bl](0.4,0.8){\rnode{peckerl}{\psframebox{pecker size}}}
+                \rput[bl](3,5.4){\rnode{colorl}{\psframebox{color}}}
+                \rput[bl](5.5,4.6){\rnode{wingl}{\psframebox{wing size}}}
+                \rput[bl](0,3.2){\rnode{sizel}{\psframebox{size}}}
+                \rput[bl](6,1.3){\psframebox{weight}}
+                \rput[bl](1.2,4.4){\psframebox{speed}}
+                \ncline{->}{clawl}{claw}
+                \ncline{->}{peckerl}{pecker}
+                \ncline{->}{colorl}{color}
+                \ncline{->}{wingl}{wing}}
+            \end{pspicture}
+        \column{6cm}
+        \begin{block}{Features}
+            \begin{itemize}
+                \item Object can be described with features.
+                \item Choose distinguishing features.
+            \end{itemize}
+        \end{block}
+    \end{columns}
 \end{frame}
 
-\begin{frame}{Feature Vectors}
+\begin{frame}{Feature Vectors}{Convert Features to Numbers}
+    \begin{columns}
+        \column{.5\textwidth}
+            \begin{math}
+                v_1 = \left<\ovalnode{VfliesV}{1, 0, 0}, \rnode{VsizeV}{15}, \rnode{VwingsV}{3}, \rnode{VcolorV}{120}\right>
+            \end{math}
+            \begin{itemize}
+                \item \rnode{Vflies}{flies}
+                \item $15\centi\meter$ \rnode{Vsize}{size}
+                \item $3\centi\meter$ \rnode{Vwings}{wings}
+                \item \rnode{Vcolor}{green}
+            \end{itemize}
+            \nccurve[angleB=-110,nodesep=2pt]{->}{Vflies}{VfliesV}
+            \nccurve[angleB=-90,nodesep=2pt]{->}{Vsize}{VsizeV}
+            \nccurve[angleB=-90,nodesep=2pt]{->}{Vwings}{VwingsV}
+            \nccurve[angleB=-90,nodesep=2pt]{->}{Vcolor}{VcolorV}
+        \column{.5\textwidth}
+        \begin{block}{Examples}
+            \begin{itemize}
+                \item Color $\Rightarrow$ Hue
+                \item Category $\Rightarrow$ Vector
+                    \begin{itemize}
+                        \item Flies $\Rightarrow$ $\left<1, 0, 0\right>$
+                        \item Swims $\Rightarrow$ $\left<0, 1, 0\right>$
+                        \item Crawls $\Rightarrow$ $\left<0, 0, 1\right>$
+                    \end{itemize}
+            \end{itemize}
+        \end{block}
+    \end{columns}
 \end{frame}
 
 \begin{frame}{Linear Separation}
-\end{frame}
-
-\begin{frame}{Error Margin}
+    \begin{columns}[t]
+        \column[T]{4cm}
+            \psset{xAxisLabel=a,yAxisLabel=b}
+            \begin{psgraph}[axesstyle=frame,subticks=10](0,0)(1,1){4cm}{4cm} 
+                \only<1-3>{
+                    \psline(-0.1,0.2)(1.1,0.4)
+                    \psline[linestyle=dashed](-0.1,0.3)(1.1,0.5)
+                    \psline(-0.1,0.4)(1.1,0.6)
+                    \psline{<->}(0.8,0.35)(0.767,0.548)
+                    \rput[bl](0.79,0.48){\tiny margin}
+                }
+                \only<1-2>{
+                    \fileplot[plotstyle=dots,dotstyle=o]{dataa.dat}
+                    \fileplot[plotstyle=dots,dotstyle=triangle]{datab.dat}
+                }
+                \only<2>{\fileplot[plotstyle=dots,dotstyle=triangle,fillcolor=red]{datac.dat}}
+                \only<3>{
+                    \fileplot[plotstyle=dots,dotstyle=o,fillcolor=green]{dataa.dat}
+                    \fileplot[plotstyle=dots,dotstyle=triangle,fillcolor=blue]{datab.dat}
+                }
+                \only<4>{
+                    \fileplot[plotstyle=dots,dotstyle=triangle]{datab.dat}
+                    \psline(-0.1,0.746)(0.746,-0.1)
+                    \psline{<->}(0,0)(0.323,0.323)
+                    \rput[bl](0.17,0.1){\tiny margin}
+                }
+            \end{psgraph}
+        \column{5cm}
+        \begin{block}{\only<1-2>{Training}\only<3>{Usage}\only<4>{One Class}}
+            \begin{itemize}
+                \only<1-2>{\item<1-2> Maximize margin.
+                           \item<2> $C > 0$ allows errors.}
+                \only<3>{\item Class can be easily determined.
+                         \item Multiple classes with multiple planes/SVMs.}
+                \only<4>{\item Maximize margin to origin.
+                         \item No labels needed.}
+            \end{itemize}
+        \end{block}
+    \end{columns}
 \end{frame}
 
 \begin{frame}{Kernels}{Nonlinear Separation}
-\end{frame}
-
-\begin{frame}{One Class}
+    Transform vector to higher dimension.
+    \begin{block}{Kernel Functions}
+        \begin{itemize}
+            \item Linear
+            \item Polynomial
+            \item Radial Basis Function (RBF)
+            \item Sigmoid
+        \end{itemize}
+    \end{block}
+    Those functions need additional parameters!
 \end{frame}
 
 \subsection{Step by Step Guide}
 
 \begin{frame}{Feature Selection}
+    \begin{itemize}
+        \item Don't use too many features.
+        \item Select features that distinguish.
+        \item Try different feature selections and compare hit rate.
+    \end{itemize}
 \end{frame}
 
 \begin{frame}{Normalisation}
+    \begin{itemize}
+        \item Normalize data to range $[-1, 1]$ or $[0, 1]$.
+        \item Prevents dominating features.
+        \item<2> \alert{Use same method for training and testing!}\\Testing data is allowed to leave the range.
+    \end{itemize}
 \end{frame}
 
 \begin{frame}{Kernel Selection}
-\end{frame}
-
-\begin{frame}{Training \& Validation}{Find the Best Parameters}
+    \begin{itemize}
+        \item Start with RBF Kernel.
+        \item Only one additional parameter.
+        \item May separate linear data better than linear hyperplane.
+        \item Try other kernels if testing data matches poorly.
+    \end{itemize}
 \end{frame}
 
 \begin{frame}{Cross-Validation}{The Better Training}
+    \centering
+    \begin{pspicture}(8,2)
+        \only<1,3>{
+            \psframe(0,0)(2,1)
+        }
+        \only<2>{
+            \psframe[fillcolor=red,fillstyle=solid](0,0)(2,1)
+        }
+        \only<1-2>{
+            \psframe(2,0)(4,1)
+        }
+        \only<3>{
+            \psframe[fillcolor=red,fillstyle=solid](2,0)(4,1)
+        }
+        \psframe(4,0)(6,1)
+        \psframe(6,0)(8,1)
+        \psbrace[rot=-90,nodesepA=-1cm,nodesepB=-2pt](8,1.05)(0,1.05){Labeled Data}
+    \end{pspicture}
+    \begin{itemize}
+        \item Split labeled data into even sized chunks.
+        \item Train with one chunk, test with rest.
+        \item Use best results.
+    \end{itemize}
 \end{frame}
 
 \subsection*{Summary}
 \begin{frame}{Summary}
+    \begin{itemize}
+        \item SVM can classify data without knowing the relation.
+        \item<2-| alert@2> Data might be completely unrelated $\Rightarrow$ bogus results.
+        \item<3-> Labeled data is needed for training and testing.
+        \item<4-> Performance depends on feature selection and parameters.
+        \begin{itemize}
+            \item<5| alert@5> Don't overdo it!
+        \end{itemize}
+    \end{itemize}
 \end{frame}
 
 \section{Network Anomaly Detection}
 
 \subsection{Challenges}
 
+\begin{frame}
+    \begin{gather*}
+        v = \left<\text{IP Version}, \text{IHL},\text{DSCP},\text{ECN},\text{Length},\text{Id},\right.\\
+        \text{IP Flags},\text{Fragment Offset},\text{TTL},\text{Protocol},\\
+        \text{Header Checksum},\text{Source IP Address},\text{Destination IP Address},\\
+        \text{Source Port},\text{Destination Port},\text{Sequence Number},\\
+        \text{Acknowledgement Number},\text{Data Offset},\text{TCP Flags},\text{Window Size},\\
+        \left.\text{TCP Checksum},\text{Urgent Pointer}\right>
+    \end{gather*}
+    \alert{Good Idea?}
+\end{frame}
+
 \begin{frame}{Training Data}
-\end{frame}
-
-\begin{frame}{Continuous Training}
-\end{frame}
-
-\begin{frame}{Error Rate}
+    \begin{itemize}
+        \item Labeled data very hard to come by.
+        \item Needs constant retraining.
+        \item Feature selection hard.
+        \item Important features change with time.
+    \end{itemize}
 \end{frame}
 
 
 \subsection{Possibilities}
 
-\begin{frame}{Detect Unknown Anomalies}
+\begin{frame}
+    \begin{itemize}
+        \item Machine learning approach recognizes unknown anomalies.
+        \item Categorize traffic.
+        \item Find anomalies in generated data.
+        \item Support other methods.
+    \end{itemize}
 \end{frame}
 
-\begin{frame}{Combine Different Sources}
-\end{frame}
-
-\begin{frame}{Performance}
+\begin{frame}
+    \begin{itemize}
+        \item Support vector machines are fast.
+        \begin{itemize}
+            \item Use for pre filtering.
+            \item Use for aggregation.
+        \end{itemize}
+        \item Simple to set up.
+        \item<2| alert@2> But this can mislead.
+    \end{itemize}
 \end{frame}
 
 
 \section*{Summary}
 
 \begin{frame}{Summary}
-
-  % Keep the summary *very short*.
-  \begin{itemize}
-  \item
-    The \alert{first main message} of your talk in one or two lines.
-  \item
-    The \alert{second main message} of your talk in one or two lines.
-  \item
-    Perhaps a \alert{third message}, but not more than that.
-  \end{itemize}
-  
-  % The following outlook is optional.
-  \vskip0pt plus.5fill
-  \begin{itemize}
-  \item
-    Outlook
     \begin{itemize}
-    \item
-      Something you haven't solved.
-    \item
-      Something else you haven't solved.
+        \item Beware of the usage pitfalls.
+        \item Use where appropriate.
     \end{itemize}
-  \end{itemize}
 \end{frame}
 
-
-
-% All of the following is optional and typically not needed. 
 \appendix
 \section<presentation>*{\appendixname}
 \subsection<presentation>*{For Further Reading}
 
 \begin{frame}[allowframebreaks]
-  \frametitle<presentation>{For Further Reading}
+    \frametitle<presentation>{For Further Reading}
     
-  \begin{thebibliography}{10}
+    \begin{thebibliography}{10}
     
-  \beamertemplatebookbibitems
-  % Start with overview books.
-
-  \bibitem{Author1990}
-    A.~Author.
-    \newblock {\em Handbook of Everything}.
-    \newblock Some Press, 1990.
- 
-    
-  \beamertemplatearticlebibitems
+    \beamertemplatearticlebibitems
   % Followed by interesting articles. Keep the list short. 
+   \bibitem{chang_libsvm:_2011}
+       Chang, Chih-Chung and Lin, Chih-Jen
+       \newblock LIBSVM: A Library for Support Vector Machines,
+       \newblock {\em ACM Trans. Intell. Syst. Technol.}, 27:1-27:27
+       2011.
 
-  \bibitem{Someone2000}
-    S.~Someone.
-    \newblock On this and that.
-    \newblock {\em Journal of This and That}, 2(1):50--100,
-    2000.
+   \bibitem{burges_tutorial_1998}
+       Burges, Christopher J. C.
+       \newblock A Tutorial on Support Vector Machines for Pattern Recognition
+       \newblock {\em Data Mining and Knowledge Discovery}, 121-167
+       1998.
+
+  \bibitem{chandola_anomaly_2009}
+    Chandola, Banerje, Kumar
+    \newblock Anomaly Detection: A Survey
+    \newblock {\em ACM Comput. Surv.}, 15:1-15:58,
+    2009.
+
+    %TODO
   \end{thebibliography}
 \end{frame}
 
-\end{document}
+\bgroup
 
+\setbeamercolor{background canvas}{bg=black}
+\setbeamertemplate{navigation symbols}{}
+\begin{frame}[plain]
+\begin{center}
+    \includegraphics[width=5cm]{pics/By.eps}\\
+    \vspace{2cm}
+    \color{white}
+    Unless otherwise noted Support Vector Machines for Network Anomaly Detection by
+    Gernot Vormayr is licensed under a
+    \href{http://creativecommons.org/licenses/by/4.0/}{Creative Commons Attribution 4.0 International License}.
+\end{center}
+\end{frame}
+
+\egroup
+
+\end{document}
 
